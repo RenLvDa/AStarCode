@@ -9,7 +9,7 @@ public class PathFind : MonoBehaviour
     byte[] data = null;
     List<Vector2> lstpath = new List<Vector2>();
     //Node存放寻路点信息
-    public struct Node
+    public class Node
     {
         public Vector2 coordinate;
         public bool walkable;
@@ -28,6 +28,26 @@ public class PathFind : MonoBehaviour
             gCost = 0;
             hCost = 0;
             walkable = isWalkable;
+        }
+        public static bool operator<(Node a, Node b)
+        {
+            if (a.fCost < b.fCost) return true;
+            else return false;
+        }
+        public static bool operator>(Node a, Node b)
+        {
+            if (a.fCost > b.fCost) return true;
+            else return false;
+        }
+        public static bool operator <=(Node a, Node b)
+        {
+            if (a.fCost <= b.fCost) return true;
+            else return false;
+        }
+        public static bool operator >=(Node a, Node b)
+        {
+            if (a.fCost <= b.fCost) return true;
+            else return false;
         }
     }
 
@@ -92,6 +112,7 @@ public class PathFind : MonoBehaviour
 
         while (openList.Count > 0)
         {
+            GC.Collect();
             //Step1:找出OpenList里f(n)=g(n)+h(n)最小的node
             Node currentNode = openList[0];
             for(int i = 0; i < openList.Count; i++)
@@ -229,5 +250,59 @@ public class PathFind : MonoBehaviour
 			return 14 * cntX + 10 * (cntY - cntX);
     }
 
+    /*
+     * 堆
+     */
+    //上浮调整
+    public void upAdjust(List<Node> list)
+    {
+        int childIndex = list.Count - 1;
+        int parentIndex = (childIndex - 1) / 2;
+        //temp保存插入的叶子节点值，用于最后的赋值
+        Node temp = list[childIndex];
+        while (childIndex > 0 && temp < list[parentIndex])
+        {
+            //无需真正交换，单向赋值即可
+            list[childIndex] = list[parentIndex];
+            childIndex = parentIndex;
+            parentIndex = (parentIndex - 1) / 2;
+        }
+        list[childIndex] = temp;
+    }
 
+    //下沉调整
+    public void downAdjust(List<Node> list,int parentIndex,int length)
+    {
+        //temp保存父节点值，用于最后的赋值
+        Node temp = list[parentIndex];
+        int childIndex = 2 * parentIndex + 1;
+        while (childIndex < length)
+        {
+            //如果有右孩子，且右孩子小于左孩子的值，则定位到右孩子
+            if(childIndex +1<length && list[childIndex+1] < list[childIndex])
+            {
+                childIndex++;
+            }
+            //如果父节点小于任何一个孩子的值，直接跳出
+            if (temp <= list[childIndex])
+            {
+                break;
+            }
+            //无需真正交换，单向赋值即可
+            list[parentIndex] = list[childIndex];
+            parentIndex = childIndex;
+            childIndex = 2 * childIndex + 1;
+        }
+        list[parentIndex] = temp;
+    }
+
+    //构建堆
+    public void buildHeap(List<Node> list)
+    {
+        //从最后一个非叶子节点开始，依次往下沉调整
+        for (int i = (list.Count / 2) - 1; i >= 0; i--)
+        {
+            downAdjust(list, i, list.Count - 1);
+        }
+    }
 }
