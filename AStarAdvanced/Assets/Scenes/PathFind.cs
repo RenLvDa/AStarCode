@@ -9,7 +9,7 @@ public class PathFind : MonoBehaviour
     byte[] data = null;
     List<Vector2> lstpath = new List<Vector2>();
     //Node存放寻路点信息
-    public class Node
+    public class Node : ICloneable
     {
         public Vector2 coordinate;
         public bool walkable;
@@ -31,12 +31,12 @@ public class PathFind : MonoBehaviour
         }
         public static bool operator<(Node a, Node b)
         {
-            if (a.fCost < b.fCost) return true;
+            if (a.fCost < b.fCost || a.fCost == b.fCost && a.hCost < b.hCost) return true;
             else return false;
         }
         public static bool operator>(Node a, Node b)
         {
-            if (a.fCost > b.fCost) return true;
+            if (a.fCost > b.fCost || a.fCost == b.fCost && a.hCost > b.hCost) return true;
             else return false;
         }
         public static bool operator <=(Node a, Node b)
@@ -48,6 +48,14 @@ public class PathFind : MonoBehaviour
         {
             if (a.fCost <= b.fCost) return true;
             else return false;
+        }
+
+        public object Clone()
+        {
+            Node instance = new Node(this.coordinate,this.walkable);
+            instance.gCost = this.gCost;
+            instance.hCost = this.hCost;
+            return instance;
         }
     }
 
@@ -112,8 +120,8 @@ public class PathFind : MonoBehaviour
 
         while (openList.Count > 0)
         {
-            GC.Collect();
             //Step1:找出OpenList里f(n)=g(n)+h(n)最小的node
+            /*
             Node currentNode = openList[0];
             for(int i = 0; i < openList.Count; i++)
             {
@@ -123,9 +131,17 @@ public class PathFind : MonoBehaviour
                     currentNode = openList[i];
                 }
             }
+            */
+            Node currentNode = (Node)openList[0].Clone();
+
             //Step2;从OpenList中移除currentNode，并且加入ClosedList
+            /*
             openList.Remove(currentNode);
             closedList.Add(currentNode);
+            */
+            RemoveHeapTop(openList);
+            closedList.Add(currentNode);
+
             //Step3:如果currentNode就是最终节点，停止寻路并且生成路径
             if(currentNode.coordinate == endNode.coordinate)
             {
@@ -150,6 +166,7 @@ public class PathFind : MonoBehaviour
                     if (!openList.Contains(node))
                     {
                         openList.Add(node);
+                        upAdjust(openList);
                     }
                 }
             }
@@ -274,7 +291,7 @@ public class PathFind : MonoBehaviour
     public void downAdjust(List<Node> list,int parentIndex,int length)
     {
         //temp保存父节点值，用于最后的赋值
-        Node temp = list[parentIndex];
+        Node temp = (Node)list[parentIndex].Clone();
         int childIndex = 2 * parentIndex + 1;
         while (childIndex < length)
         {
@@ -299,10 +316,24 @@ public class PathFind : MonoBehaviour
     //构建堆
     public void buildHeap(List<Node> list)
     {
+        int index = list.Count / 2 - 1;
+        if (index < 0) index = 0;
         //从最后一个非叶子节点开始，依次往下沉调整
-        for (int i = (list.Count / 2) - 1; i >= 0; i--)
+        for (int i = index; i >= 0; i--)
         {
             downAdjust(list, i, list.Count - 1);
+        }
+    }
+
+    //移除堆顶元素
+    public void RemoveHeapTop(List<Node> list)
+    {
+        int last = list.Count - 1;
+        list[0] = list[last];
+        list.RemoveAt(last);
+        if (list.Count > 1)
+        {
+            downAdjust(list, 0, list.Count - 1);
         }
     }
 }
