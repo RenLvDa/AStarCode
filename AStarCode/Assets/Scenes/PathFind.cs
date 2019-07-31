@@ -20,8 +20,6 @@ public class PathFind : MonoBehaviour
     List<Vector2> lstpath = new List<Vector2>();
     int data_width = 0;
 
-    public List<Node> jumpNodes;
-
     //起始节点
     private Node beginNode;
     private Node endNode;
@@ -223,7 +221,6 @@ public class PathFind : MonoBehaviour
                     lstPath.Add(new Vector2(node.x, node.y));
                     if (!openList.Contains(node))
                     {
-                        Debug.Log(openList.Count);
                         openList.Add(node);
                         upAdjust(openList);
                     }
@@ -243,6 +240,16 @@ public class PathFind : MonoBehaviour
     {
         if (GUI.Button(new Rect(0, 0, 100, 100), "Find Example"))
         {
+            List<Node> list = new List<Node>();
+            int n = 1024 * 1024;
+            for(int i = 0; i < n; i++)
+            {
+                //list.Add(new Node(i, i, true));
+            }
+            for(int i = 0; i < n; i++)
+            {
+                //Debug.Log(1);
+            }
             for(int i = 0; i < lstpath.Count; i++)
             {
                 Debug.Log(lstpath[i]);
@@ -260,9 +267,8 @@ public class PathFind : MonoBehaviour
         }
         if (GUI.Button(new Rect(0, 100, 100, 100), "Find"))
         {
-            if (Find(new Vector2(50, 50), new Vector2(500, 100), lstpath))
+            if (Find(new Vector2(512,512), new Vector2(0, 0), lstpath))
             {
-                DoPath();
                 Debug.Log("find success");
             }
             else
@@ -438,17 +444,18 @@ public class PathFind : MonoBehaviour
 
         //初始化openList和closedList
         //List<Node> openList = new List<Node>();
-        Heap<Node> openSet = new Heap<Node>(1024*1024);
+        Heap<Node> openSet = new Heap<Node>(data_width* data_width);
         HashSet<Node> openSetContainer = new HashSet<Node>();
         HashSet<Node> closedSet = new HashSet<Node>();
-        jumpNodes = new List<Node>();
+
+        Node currentNode;
 
         //openList.Add(beginNode);
         openSet.Add(beginNode);
         openSetContainer.Add(beginNode);
         while (openSet.Count > 0)
         {
-            Node currentNode = openSet.RemoveFirst();
+            currentNode = openSet.RemoveFirst();
             //找出OpenList里f(n)=g(n)+h(n)最小的node
             //Node currentNode = (Node)openList[0].Clone();
             //RemoveHeapTop(openList);
@@ -464,7 +471,6 @@ public class PathFind : MonoBehaviour
                 List<Node> Nodes = GetSuccessors(currentNode);
                 foreach(Node node in Nodes)
                 {
-                    jumpNodes.Add(node);
                     if (closedSet.Contains(node))
                         continue;
 
@@ -504,8 +510,8 @@ public class PathFind : MonoBehaviour
         List<Node> neighbours = JpsGetNeighbours(currentNode);
         foreach(Node neighbour in neighbours)
         {
-            int xDirection = (int)Mathf.Clamp(neighbour.x - currentNode.x, -1, 1);
-            int yDirection = (int)Mathf.Clamp(neighbour.y - currentNode.y, -1, 1);
+            int xDirection = neighbour.x - currentNode.x;
+            int yDirection = neighbour.y - currentNode.y;
 
             jumpNode = Jump(neighbour, currentNode, xDirection, yDirection);
 
@@ -541,22 +547,22 @@ public class PathFind : MonoBehaviour
                 bool neighbourDown = isWalkable(currentNode.x, currentNode.y - yDirection);
 
                 if (neighbourUp)
-                    neighbours.Add(new Node(currentNode.x, currentNode.y + yDirection, true));
+                    neighbours.Add(new Node(currentNode.x, currentNode.y + yDirection, isWalkable(currentNode.x, currentNode.y + yDirection)));
 
                 if (neighbourRight)
-                    neighbours.Add(new Node(currentNode.x + xDirection, currentNode.y, true));
+                    neighbours.Add(new Node(currentNode.x + xDirection, currentNode.y, isWalkable(currentNode.x + xDirection, currentNode.y)));
 
                 if (neighbourUp || neighbourRight)
                     if (isWalkable(currentNode.x + xDirection, currentNode.y + yDirection))
-                        neighbours.Add(new Node(currentNode.x + xDirection, currentNode.y + yDirection, true));
+                        neighbours.Add(new Node(currentNode.x + xDirection, currentNode.y + yDirection, isWalkable(currentNode.x + xDirection, currentNode.y + yDirection)));
 
                 if (!neighbourLeft && neighbourUp)
                     if (isWalkable(currentNode.x - xDirection, currentNode.y + yDirection))
-                        neighbours.Add(new Node(currentNode.x - xDirection, currentNode.y + yDirection, true));
+                        neighbours.Add(new Node(currentNode.x - xDirection, currentNode.y + yDirection, isWalkable(currentNode.x - xDirection, currentNode.y + yDirection)));
 
                 if (!neighbourDown && neighbourRight)
                     if (isWalkable(currentNode.x + xDirection, currentNode.y - yDirection))
-                        neighbours.Add(new Node(currentNode.x + xDirection, currentNode.y - yDirection, true));
+                        neighbours.Add(new Node(currentNode.x + xDirection, currentNode.y - yDirection, isWalkable(currentNode.x + xDirection, currentNode.y - yDirection)));
             }
             else
             {
@@ -565,15 +571,15 @@ public class PathFind : MonoBehaviour
                     //y方向
                     if (isWalkable(currentNode.x, currentNode.y + yDirection))
                     {
-                        neighbours.Add(new Node(currentNode.x, currentNode.y + yDirection,true));
+                        neighbours.Add(new Node(currentNode.x, currentNode.y + yDirection,isWalkable(currentNode.x, currentNode.y + yDirection)));
 
                         if (!isWalkable(currentNode.x + 1, currentNode.y))
                             if (isWalkable(currentNode.x + 1, currentNode.y + yDirection))
-                                neighbours.Add(new Node(currentNode.x + 1, currentNode.y + yDirection, true));
+                                neighbours.Add(new Node(currentNode.x + 1, currentNode.y + yDirection, isWalkable(currentNode.x + 1, currentNode.y + yDirection)));
 
                         if (!isWalkable(currentNode.x - 1, currentNode.y))
                             if (isWalkable(currentNode.x - 1, currentNode.y + yDirection))
-                                neighbours.Add(new Node(currentNode.x - 1, currentNode.y + yDirection, true));
+                                neighbours.Add(new Node(currentNode.x - 1, currentNode.y + yDirection, isWalkable(currentNode.x - 1, currentNode.y + yDirection)));
                     }
                 }
                 else
@@ -581,11 +587,11 @@ public class PathFind : MonoBehaviour
                     //x方向
                     if (isWalkable(currentNode.x + xDirection, currentNode.y))
                     {
-                        neighbours.Add(new Node(currentNode.x + xDirection, currentNode.y, true));
+                        neighbours.Add(new Node(currentNode.x + xDirection, currentNode.y, isWalkable(currentNode.x + xDirection, currentNode.y)));
                         if (!isWalkable(currentNode.x, currentNode.y + 1))
-                            neighbours.Add(new Node(currentNode.x + xDirection, currentNode.y + 1, true));
+                            neighbours.Add(new Node(currentNode.x + xDirection, currentNode.y + 1, isWalkable(currentNode.x + xDirection, currentNode.y + 1)));
                         if (!isWalkable(currentNode.x, currentNode.y - 1))
-                            neighbours.Add(new Node(currentNode.x + xDirection, currentNode.y - 1, true));
+                            neighbours.Add(new Node(currentNode.x + xDirection, currentNode.y - 1, isWalkable(currentNode.x + xDirection, currentNode.y - 1)));
                     }
                 }
             }
@@ -635,7 +641,6 @@ public class PathFind : MonoBehaviour
             {
                 if (!forced)
                 {
-                    Debug.Log(currentNode);
                     Node temp = new Node(currentNode.x + xDirection, currentNode.y + yDirection, isWalkable(currentNode.x + xDirection, currentNode.y + yDirection));
                     return Jump(temp, currentNode, xDirection, yDirection);
                 }
@@ -645,8 +650,7 @@ public class PathFind : MonoBehaviour
                 }
             }
         }
-        //情况：方向为水平垂直线
-        else
+        else//情况：方向为水平垂直线
         {
             //方向为水平
             if (xDirection != 0)
@@ -658,8 +662,7 @@ public class PathFind : MonoBehaviour
                     return currentNode;
                 }
             }
-            //方向为垂直
-            else
+            else//方向为垂直
             {
                 if ((isWalkable(currentNode.x + 1, currentNode.y + yDirection) && !isWalkable(currentNode.x + 1, currentNode.y)) ||
                     (isWalkable(currentNode.x - 1, currentNode.y + yDirection) && !isWalkable(currentNode.x - 1, currentNode.y)))
@@ -670,6 +673,10 @@ public class PathFind : MonoBehaviour
             }
         }
         Node nextNode = new Node(currentNode.x + xDirection, currentNode.y + yDirection, isWalkable(currentNode.x + xDirection, currentNode.y + yDirection));
+        if (!isWalkable(currentNode.x + xDirection, currentNode.y + yDirection))
+        {
+            nextNode = null;
+        }
         return Jump(nextNode, currentNode, xDirection, yDirection);
     }
 
