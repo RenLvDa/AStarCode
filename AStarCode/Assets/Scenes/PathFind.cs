@@ -20,13 +20,15 @@ public class PathFind : MonoBehaviour
     List<Vector2> lstpath = new List<Vector2>();
     int data_width = 0;
 
+    public List<Node> jumpNodes;
+
     //起始节点
     private Node beginNode;
     private Node endNode;
 
     #region my node
     //Node存放寻路点信息
-    public class Node : ICloneable
+    public class Node : ICloneable,IHeapItem<Node>
     {
         //public Vector2 coordinate;
         public int x;
@@ -38,6 +40,7 @@ public class PathFind : MonoBehaviour
         {
             get { return gCost + hCost; }
         }
+        
         public Node parent; //父节点
         public Node(int x, int y, bool isWalkable)
         {
@@ -67,28 +70,34 @@ public class PathFind : MonoBehaviour
             if (a.fCost <= b.fCost) return true;
             else return false;
         }
-        public static bool operator ==(Node a,Node b)
-        {
-            if (a.x == b.x && a.y == b.y) return true;
-            else return false;
-        }
-        public static bool operator !=(Node a, Node b)
-        {
-            if (a.x != b.x || a.y != b.y) return true;
-            else return false;
-        }
-        public override bool Equals(object obj)
-        {
-            var node = obj as Node;
-            if (node.x == this.x && node.y == this.y) return true;
-            else return false;
-        }
         public object Clone()
         {
             Node instance = new Node(this.x, this.y, this.walkable);
             instance.gCost = this.gCost;
             instance.hCost = this.hCost;
             return instance;
+        }
+
+        private int _heapIndex = 0;
+        public int HeapIndex
+        {
+            get
+            {
+                return _heapIndex;
+            }
+            set
+            {
+                _heapIndex = value;
+            }
+        }
+        public int CompareTo(Node nodeToCompare)
+        {
+            int compare = fCost.CompareTo(nodeToCompare.fCost);
+            if (compare == 0)
+            {
+                compare = hCost.CompareTo(nodeToCompare.hCost);
+            }
+            return -compare;
         }
     }
     #endregion
@@ -108,11 +117,11 @@ public class PathFind : MonoBehaviour
     {
         int x = (int)v.x;
         int y = (int)v.y;
-        return data[y * data_width + x] != 0;
+        return (x >= 0 && x < data_width) && (y >= 0 && y < data_width) && (data[y * data_width + x] != 0);
     }
     public bool isWalkable(int x,int y)
     {
-        return data[y * data_width + x] != 0;
+        return (x >= 0 && x < data_width) && (y >= 0 && y < data_width) && (data[y * data_width + x] != 0);
     }
     // Start is called before the first frame update
     void Start()
@@ -149,8 +158,13 @@ public class PathFind : MonoBehaviour
 
         return true;
     }
-    //寻路函数入口 
+    //寻路函数入口(新)
     public bool Find(Vector2 begin, Vector2 end, List<Vector2> lstPath)
+    {
+        return JPS(begin, end, lstPath);
+    }
+    //寻路函数入口(旧) 
+    public bool FindOld(Vector2 begin, Vector2 end, List<Vector2> lstPath)
     {
         lstPath.Clear();
         //补充真正的寻路 如果寻路成功返回true 如果寻路失败返回false
@@ -229,6 +243,11 @@ public class PathFind : MonoBehaviour
     {
         if (GUI.Button(new Rect(0, 0, 100, 100), "Find Example"))
         {
+            for(int i = 0; i < lstpath.Count; i++)
+            {
+                Debug.Log(lstpath[i]);
+            }
+            /*
             if (TestFind(new Vector2(50, 50), new Vector2(512, 512), lstpath))
             {
                 Debug.Log("find success");
@@ -237,11 +256,13 @@ public class PathFind : MonoBehaviour
             {
                 Debug.Log("find failed");
             }
+            */
         }
         if (GUI.Button(new Rect(0, 100, 100, 100), "Find"))
         {
-            if (Find(new Vector2(50, 50), new Vector2(600, 120), lstpath))
+            if (Find(new Vector2(50, 50), new Vector2(500, 100), lstpath))
             {
+                DoPath();
                 Debug.Log("find success");
             }
             else
@@ -401,6 +422,7 @@ public class PathFind : MonoBehaviour
         }
     }
     #endregion
+    #region JPS
     /// <summary>
     /// JPS跳点寻路
     /// </summary>
@@ -409,29 +431,70 @@ public class PathFind : MonoBehaviour
         //存放路径
         lstPath.Clear();
         lstPath.Add(begin);
+
         //初始化起始点和结束点
         beginNode = new Node((int)begin.x, (int)begin.y, isWalkable(begin));
         endNode = new Node((int)end.x, (int)end.y, isWalkable(end));
+
         //初始化openList和closedList
-        List<Node> openList = new List<Node>();
-        HashSet<Node> closedList = new HashSet<Node>();
-        openList.Add(beginNode);
-        while (openList.Count > 0)
+        //List<Node> openList = new List<Node>();
+        Heap<Node> openSet = new Heap<Node>(1024*1024);
+        HashSet<Node> openSetContainer = new HashSet<Node>();
+        HashSet<Node> closedSet = new HashSet<Node>();
+        jumpNodes = new List<Node>();
+
+        //openList.Add(beginNode);
+        openSet.Add(beginNode);
+        openSetContainer.Add(beginNode);
+        while (openSet.Count > 0)
         {
+            Node currentNode = openSet.RemoveFirst();
             //找出OpenList里f(n)=g(n)+h(n)最小的node
-            Node currentNode = (Node)openList[0].Clone();
-            Node parentNode = currentNode.parent;
-            if(currentNode == endNode)
+            //Node currentNode = (Node)openList[0].Clone();
+            //RemoveHeapTop(openList);
+            openSetContainer.Remove(currentNode); //warning
+            if(currentNode.x == endNode.x && currentNode.y == endNode.y)
             {
+                lstPath.Add(end);
                 return true;
             }
             else
             {
+                closedSet.Add(currentNode);
+                List<Node> Nodes = GetSuccessors(currentNode);
+                foreach(Node node in Nodes)
+                {
+                    jumpNodes.Add(node);
+                    if (closedSet.Contains(node))
+                        continue;
 
+                    int newGCost = currentNode.gCost + _GetDistance(currentNode, node);
+
+                    if (newGCost < node.gCost || !openSetContainer.Contains(node))
+                    {
+                        node.gCost = newGCost;
+                        node.hCost = _GetDistance(node, endNode);
+                        node.parent = currentNode;
+
+                        lstPath.Add(new Vector2(node.x, node.y)); //todo
+                        if (!openSetContainer.Contains(node))
+                        {
+                            openSetContainer.Add(node);
+                            openSet.Add(node);
+                            //openList.Add(node);
+                            //upAdjust(openList);
+                        }
+                        else
+                        {
+                            openSet.UpdateItem(node);
+                            //buildHeap(openList); //todo
+                        }
+                    }
+                }
             }
         }
         //TODO 记得删掉这个return
-        return true;
+        return false;
     }
 
     private List<Node> GetSuccessors(Node currentNode)
@@ -530,27 +593,121 @@ public class PathFind : MonoBehaviour
         return neighbours;
     }
 
+    //寻找跳点
     private Node Jump(Node currentNode,Node parentNode,int xDirection,int yDirection)
     {
+        //如果当前节点为空或不可走 返回空
         if (currentNode == null || !isWalkable(currentNode.x, currentNode.y))
             return null;
+        //如果当前节点为终点 返回当前节点
         if(currentNode.x == endNode.x && currentNode.y == endNode.y)
         {
             forced = true;
             return currentNode;
         }
+        //开始寻找跳点
         forced = false;
-
+        //情况：方向为对角线
         if (xDirection != 0 && yDirection != 0)
         {
-            if (!isWalkable(currentNode.x - xDirection, currentNode.y) && isWalkable(currentNode.x - xDirection, currentNode.y + yDirection) ||
-               !isWalkable(currentNode.x, currentNode.y - yDirection) && isWalkable(currentNode.x + xDirection, currentNode.y - yDirection))
+            if ((!isWalkable(currentNode.x - xDirection, currentNode.y) && isWalkable(currentNode.x - xDirection, currentNode.y + yDirection)) ||
+                (!isWalkable(currentNode.x, currentNode.y - yDirection) && isWalkable(currentNode.x + xDirection, currentNode.y - yDirection)))
             {
                 return currentNode; //此时currentNode是跳点（因为有强迫邻居）
             }
-            //TODO
+            Node nextHorizontalNode = new Node(currentNode.x + xDirection, currentNode.y, isWalkable(currentNode.x + xDirection, currentNode.y));
+            Node nextVerticalNode = new Node(currentNode.x, currentNode.y + yDirection, isWalkable(currentNode.x, currentNode.y + yDirection));
+            if (nextHorizontalNode.walkable == false || nextVerticalNode.walkable == false)
+            {
+                bool found = false;
+                if (nextHorizontalNode.walkable == true && isWalkable(currentNode.x + xDirection, currentNode.y + yDirection))
+                {
+                    found = true;
+                }
+                if (nextVerticalNode.walkable == true && isWalkable(currentNode.x + xDirection, currentNode.y + yDirection))
+                {
+                    found = true;
+                }
+                if (!found)
+                    return null;
+            }
+            if (Jump(nextHorizontalNode, currentNode, xDirection, 0) != null || Jump(nextVerticalNode, currentNode, 0, yDirection) != null)
+            {
+                if (!forced)
+                {
+                    Debug.Log(currentNode);
+                    Node temp = new Node(currentNode.x + xDirection, currentNode.y + yDirection, isWalkable(currentNode.x + xDirection, currentNode.y + yDirection));
+                    return Jump(temp, currentNode, xDirection, yDirection);
+                }
+                else
+                {
+                    return currentNode;
+                }
+            }
+        }
+        //情况：方向为水平垂直线
+        else
+        {
+            //方向为水平
+            if (xDirection != 0)
+            {
+                if((isWalkable(currentNode.x + xDirection, currentNode.y + 1) && !isWalkable(currentNode.x, currentNode.y + 1)) ||
+                   (isWalkable(currentNode.x + xDirection, currentNode.y - 1) && !isWalkable(currentNode.x, currentNode.y - 1)))
+                {
+                    forced = true;
+                    return currentNode;
+                }
+            }
+            //方向为垂直
+            else
+            {
+                if ((isWalkable(currentNode.x + 1, currentNode.y + yDirection) && !isWalkable(currentNode.x + 1, currentNode.y)) ||
+                    (isWalkable(currentNode.x - 1, currentNode.y + yDirection) && !isWalkable(currentNode.x - 1, currentNode.y)))
+                {
+                    forced = true;
+                    return currentNode;
+                }
+            }
+        }
+        Node nextNode = new Node(currentNode.x + xDirection, currentNode.y + yDirection, isWalkable(currentNode.x + xDirection, currentNode.y + yDirection));
+        return Jump(nextNode, currentNode, xDirection, yDirection);
+    }
+
+    private int _GetDistance(Node a, Node b)
+    {
+        int distX = Mathf.Abs(a.x - b.x);
+        int distY = Mathf.Abs(a.y - b.y);
+
+        if (distX > distY)
+            return 14 * distY + 10 * (distX - distY);
+
+        return 14 * distX + 10 * (distY - distX);
+    }
+
+    private void DoPath()
+    {
+        List<Node> path = _RetracePath();
+        Vector2 vector2;
+        for (int i = 0; i < path.Count; i++)
+        {
+           vector2 = new Vector2(path[i].x,path[i].y);
+           lstpath.Add(vector2);
         }
 
-        return null;
-    } 
+    }
+    private List<Node> _RetracePath()
+    {
+        List<Node> path = new List<Node>();
+        Node currentNode = endNode;
+
+        while (currentNode != beginNode)
+        {
+            path.Add(currentNode);
+            currentNode = currentNode.parent;
+        }
+        path.Reverse();
+        return path;
+    }
+
+    #endregion
 }
